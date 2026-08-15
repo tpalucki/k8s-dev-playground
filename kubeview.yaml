@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeview
+---
+# 1. Tożsamość dla podu KubeView
+# Wymagane aby ta aplikacja mogla odczytywac stan klastra k8s
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubeview-sa
+  namespace: kubeview
+---
+# 2. Dostęp tylko do odczytu (read-only) do całego klastra
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubeview-read-role
+rules:
+  - apiGroups: [ "*" ]
+    resources: [ "*" ]
+    verbs: [ "get", "list", "watch" ]
+---
+# 3. Połączenie tożsamości z uprawnieniami
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubeview-read-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubeview-read-role
+subjects:
+  - kind: ServiceAccount
+    name: kubeview-sa
+    namespace: kubeview
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubeview-config
+  namespace: kubeview
+data:
+  SPRING_PROFILES_ACTIVE: "k8s-dev"
+  MY_CUSTOM_PROPERTY: "witaj-z-k8s"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeview
+  namespace: kubeview
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: kubeview
+  template:
+    metadata:
+      labels:
+        app: kubeview
+    spec:
+      serviceAccountName: kubeview-sa # <--- Wskazujemy stworzoną tożsamość!
+      containers:
+        - name: kubeview
+          image: ghcr.io/benc-uk/kubeview:latest
+          ports:
+            - containerPort: 8000 # Kubeview wewnątrz kontenera działa na porcie 8000
+          env: # Mozna specyfikowac zmienne srodowiskowe juz na poziomnie obiektu Deployment
+            - name: SPRING_PROFILES_ACTIVE
+              value: "dev"
+            - name: SPRING_VIRTUAL_THREADS_ENABLED
+              value: "true"
+          envFrom: # Mozna wstrzyknac env z ConfigMap
+            - configMapRef:
+                name: kubeview-config # <-- Wszystkie zmienne z ConfigMap trafiają do kontenera!
+      volumes:
+        - name: config-volume
+          configMap:
+            name: spring-application-config
+
+---
+### LUB Mozna wsadzi cale application.yaml do ConfigMap i podmontowa pod linkiem
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spring-application-config
+  namespace: kubeview
+data:
+  application.yaml: |
+    spring:
+      profiles:
+        active: prod
+    logging:
+      level:
+        root: INFO
+        com.example: DEBUG
+---
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  name: kubeview-service
+#  namespace: kubeview
+#spec:
+#  type: NodePort
+#  ports:
+#    - port: 8000 # <-- Port Serwisu (punkt wejścia w klastrze)
+#      targetPort: 8000 # <-- Port docelowy w Podzie
+#      nodePort: 30000 # Opcjonalnie: określ port na hoście
+#  selector:
+#    app: kubeview
+#---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubeview-service
+  namespace: kubeview
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: kubeview
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kubeview-ingress
+  namespace: kubeview
+spec:
+  rules:
+    - host: kubeview.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kubeview-service
+                port:
+                  number: 8000
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spring-postgres-secret
+  namespace: kubeview
+type: Opaque
+stringData:
+  # stringData pozwala wpisać hasło w czytelnym tekście (K8s sam przekonwertuje je na Base64):
+  SPRING_DATASOURCE_PASSWORD: "SuperSecretPassword123!"
+  POSTGRES_PASSWORD: "SuperSecretPassword123!"
