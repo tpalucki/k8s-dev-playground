@@ -43,6 +43,7 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: "k8s-dev"
   MY_CUSTOM_PROPERTY: "witaj-z-k8s"
+  SPRING_DATASOURCE_USERNAME: "db_user"
 ---
 apiVersion: apps/v1
 kind: Deployment

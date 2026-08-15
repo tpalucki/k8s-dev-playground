@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-boot-app
+  namespace: kubeview
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: spring-boot-app
+  template:
+    metadata:
+      labels:
+        app: spring-boot-app
+    spec:
+      containers:
+        - name: spring-boot-app
+          image: sample-k8s-deployment-docker:latest # Twój obraz aplikacji
+          imagePullPolicy: IfNotPresent  # <--- BARDZO WAŻNE! najpierw szuka w klastrze k3d, dopiero potem w Publicznym rejestrze
+          ports:
+            - containerPort: 8080
+          envFrom:
+            # Ładujemy wszystkie zmienne z ConfigMap:
+            - configMapRef:
+                name: kubeview-config
+            - configMapRef:
+                name: spring-application-config
+            # Ładujemy hasło z Secret:
+            - secretRef:
+                name: spring-postgres-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spring-boot-service
+  namespace: kubeview
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: spring-boot-app
