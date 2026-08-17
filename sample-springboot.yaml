@@ -4,7 +4,7 @@ metadata:
   name: spring-boot-app
   namespace: kubeview
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: spring-boot-app
@@ -19,6 +19,31 @@ spec:
           imagePullPolicy: IfNotPresent  # <--- BARDZO WAŻNE! najpierw szuka w klastrze k3d, dopiero potem w Publicznym rejestrze
           ports:
             - containerPort: 8080
+
+          # 1️⃣ STARTUP PROBE: Daje czas Springowi na powolny start
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            failureThreshold: 30 # 30 prób x 2s = daje do 60 sekund na start
+            periodSeconds: 2
+          # 2️⃣ LIVENESS PROBE: Sprawdza regularnie, czy aplikacja nie "wisi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 10     # Sprawdzaj co 10 sekund
+            timeoutSeconds: 3     # Oczekuj odpowiedzi max 3 sekundy
+            failureThreshold: 3   # Po 3 nieudanych próbach zrestartuj Pod
+          # 3️⃣ READINESS PROBE: Sprawdza, czy wysyłać ruch do tego Poda
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 5      # Sprawdzaj co 5 sekund
+            timeoutSeconds: 2
+            failureThreshold: 2   # Po 2 błędach odłącz od Serwisu (ruch idzie do innych podów)
+
           envFrom:
             # Ładujemy wszystkie zmienne z ConfigMap:
             - configMapRef:
@@ -28,6 +53,18 @@ spec:
             # Ładujemy hasło z Secret:
             - secretRef:
                 name: spring-postgres-secret
+          env:
+            # JVM automatycznie wykryje limit pamięci kontenera (1Gi) i ustawi Heap na 75% z 1Gi (~768MB):
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=75.0 -XX:MinRAMPercentage=75.0"
+          # 💡 Dlaczego 75%? Pozostałe 25% pamięci RAM z limitu kontenera jest potrzebne na obszary poza stertą: Metaspace, stosy wątków (Thread Stacks), kompilator JIT oraz pamięć natywną JVM.
+          resources:
+            requests:
+              cpu: "250m"      # 0.25 vCPU
+              memory: "256Mi"  # 256 MB RAM
+            limits:
+              cpu: "500m"     # 0.5 vCPU
+              memory: "0.5Gi"    # 1 GB RAM
 ---
 apiVersion: v1
 kind: Service

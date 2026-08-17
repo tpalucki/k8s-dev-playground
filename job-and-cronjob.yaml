@@ -1,0 +1,39 @@
+# Job to jednorazowa akcja, przestaje ponawiac jesli zakonczy sie sukcsem
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migration-job
+  namespace: kubeview
+spec:
+  # Ile razy ponowić próbę w razie błędu (domyślnie 6):
+  backoffLimit: 3
+
+  # Automatyczne usunięcie Poda/Joba np. 100 sekund po zakończeniu sukcesem:
+  ttlSecondsAfterFinished: 100
+
+  template:
+    spec:
+      restartPolicy: OnFailure # <-- Dla Jobów dopuszczalne jest tylko OnFailure lub Never
+      containers:
+        - name: db-migrator
+          image: my-migrator:latest
+          command: ["sh", "-c", "echo 'Wykonywanie migracji...'; sleep 5; echo 'Gotowe!'"]
+
+---
+# CronJob to wersja Joba ktora wykonuje sie zgodnie z cron z linuxa
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-backup
+  namespace: kubeview
+spec:
+  schedule: "*/5 * * * *" # <-- Co 5 minut
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup-task
+              image: postgres:16-alpine
+              command: ["sh", "-c", "pg_dump ..."]

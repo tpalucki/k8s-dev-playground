@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: dev-limit-range
+  namespace: kubeview   # <--- Wskazujesz namespace
+spec:
+  limits:
+    - type: Container
+      # 1. Domyślne wartości (gdy w Deploymencie pominiesz sekcję resources):
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "256Mi"
+
+      # 2. Widełki dopuszczalnych wartości (K8s zablokuje Pod, jeśli przekroczy te ramy):
+      max:
+        cpu: "1000m"
+        memory: "1Gi"
+      min:
+        cpu: "100m"
+        memory: "128Mi"
