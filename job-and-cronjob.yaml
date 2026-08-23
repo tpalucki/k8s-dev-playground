@@ -27,11 +27,15 @@ metadata:
   name: daily-backup
   namespace: kubeview
 spec:
-  schedule: "*/5 * * * *" # <-- Co 5 minut
+#  schedule: "*/5 * * * *" # <-- Co 5 minut
+  schedule: "@yearly"
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 0
   jobTemplate:
     spec:
       template:
         spec:
+
           restartPolicy: OnFailure
           containers:
             - name: backup-task
