@@ -1,0 +1,67 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: spring-app-sticky-route
+  namespace: sample-app
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`app.localhost`)
+      kind: Rule
+      services:
+        - name: spring-boot-app-2
+          port: 8080
+          # 👇 WŁĄCZENIE STICKY SESSIONS 👇
+          sticky:
+            cookie:
+              name: APP_STICKY_COOKIE # Nazwa ciasteczka
+              httpOnly: true          # Zabezpieczenie przed XSS
+              secure: false           # Ustaw true, jeśli używasz HTTPS
+              sameSite: lax
+
+---
+### Lub mozna to zrobic przez standardowy Ingress i annotations
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spring-app-ingress
+  namespace: sample-app
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # 👇 Włączenie ciasteczka sesyjnego w Traefik Ingress:
+    traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.name: "APP_STICKY_COOKIE"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.httponly: "true"
+spec:
+  rules:
+    - host: app.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spring-boot-app-2
+                port:
+                  number: 8080
+
+---
+### Mozna tez rozdzielac ruch procentowo lub canary (z uzyciem IngressRoute)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: canary-route
+  namespace: app-team
+spec:
+  routes:
+    - match: Host(`app.localhost`)
+      kind: Rule
+      services:
+        - name: app-v1-service
+          port: 8080
+          weight: 80 # 80% ruchu trafia do wersji 1
+        - name: app-v2-service
+          port: 8080
+          weight: 20 # 20% ruchu trafia do wersji 2 (Canary)
