@@ -1,0 +1,45 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: spring-app-hpa
+  namespace: sample-app
+spec:
+  # Obiekt, który skalujemy:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: spring-app
+
+  # Zakres replik:
+  minReplicas: 2   # Nigdy mniej niż 2 (dla wysokiej dostępności - HA)
+  maxReplicas: 10  # Maksymalna granica, aby nie wyczerpać klastra
+
+  # Metryki wyzwalające skalowanie:
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70 # Skaluj w górę, gdy średnie zużycie CPU > 70%
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80 # Skaluj w górę, gdy zużycie RAM > 80%
+
+  # 🛡️ Ochrona przed zbyt szybkim zwijaniem podów (Stabilization Window):
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300 # Odczekaj 5 min niskiego ruchu przed usunięciem podów
+      policies:
+        - type: Percent
+          value: 20                  # Usuwaj max 20% podów na minutę
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0   # Skaluj natychmiast w górę przy skoku obciążenia
+      policies:
+        - type: Percent
+          value: 100                 # Możesz podwoić liczbę podów w 15 sekund
+          periodSeconds: 15
