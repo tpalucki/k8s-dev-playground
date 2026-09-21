@@ -1,0 +1,58 @@
+replicaCount: 1
+
+image:
+  repository: sample-k8s-deployment-docker
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  host: app2.localhost # Adres hosta dla Ingressu (k3d / Traefik)
+  path: /
+  pathType: Prefix
+
+config:
+  datasourceUsername: "db_user"
+  datasourceUrl: "jdbc:postgresql://postgres-service.kubeview:5432/app_db"
+
+secret:
+  datasourcePassword: "SuperSecretPassword123!"
+  postgresPassword: "SuperSecretPassword123!"
+
+jvm:
+  javaToolOptions: "-XX:MaxRAMPercentage=75.0 -XX:MinRAMPercentage=75.0"
+
+probes:
+  startup:
+    path: /actuator/health/liveness
+    failureThreshold: 30
+    periodSeconds: 2
+  liveness:
+    path: /actuator/health/liveness
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    path: /actuator/health/readiness
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 2
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80

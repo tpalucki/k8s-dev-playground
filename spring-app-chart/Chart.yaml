@@ -1,0 +1,6 @@
+apiVersion: v2
+name: spring-app-chart
+description: Helm Chart dla aplikacji Spring Boot z bazą danych i HPA
+type: application
+version: 0.1.0
+appVersion: "latest"
